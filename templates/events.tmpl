@@ -1,0 +1,30 @@
+#######START TEMPLATE##########
+{{ $containers := . }}
+
+{{range $event := .Events}}
+Action = {{ $event.Action }}
+ID = {{ $event.ID }}
+
+  {{range $value := $containers }}
+
+    {{ if eq $value.ID $event.ID }}
+Name = {{ $value.Name }}
+Running = {{ $value.State.Running }}
+      {{ with $value.Labels }}
+Labels :
+        {{ range $lkey, $lvalue := $value.Labels }}
+          {{ with $lvalue }}
+            {{ $lkey }} = {{ $lvalue }}
+          {{ else }}
+            {{ $lkey }}
+          {{ end }}
+        {{ end }}
+      {{ end }}
+
+    {{ end }}
+
+  {{end}}
+
+  -------
+{{end}}
+########END TEMPLATE#########

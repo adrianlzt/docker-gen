@@ -191,12 +191,16 @@ func (g *generator) generateFromEvents() {
 			watchers = append(watchers, watcher)
 
 			debouncedChan := newDebounceChannel(watcher, config.Wait)
-			for _ = range debouncedChan {
+			for events := range debouncedChan {
 				containers, err := g.getContainers()
 				if err != nil {
 					log.Printf("Error listing containers: %s\n", err)
 					continue
 				}
+
+				// Add events to the context info
+				SetDockerEvents(events)
+
 				changed := GenerateFile(config, containers)
 				if !changed {
 					log.Printf("Contents of %s did not change. Skipping notification '%s'", config.Dest, config.NotifyCmd)
@@ -467,19 +471,21 @@ func newSignalChannel() <-chan os.Signal {
 	return sig
 }
 
-func newDebounceChannel(input chan *docker.APIEvents, wait *Wait) chan *docker.APIEvents {
+func newDebounceChannel(input chan *docker.APIEvents, wait *Wait) chan []*docker.APIEvents {
+	output := make(chan []*docker.APIEvents, 100)
+
 	if wait == nil {
-		return input
+		output <- []*docker.APIEvents{<-input}
+		return output
 	}
 	if wait.Min == 0 {
-		return input
+		output <- []*docker.APIEvents{<-input}
+		return output
 	}
-
-	output := make(chan *docker.APIEvents, 100)
 
 	go func() {
 		var (
-			event    *docker.APIEvents
+			event    []*docker.APIEvents
 			minTimer <-chan time.Time
 			maxTimer <-chan time.Time
 		)
@@ -492,7 +498,7 @@ func newDebounceChannel(input chan *docker.APIEvents, wait *Wait) chan *docker.A
 				if !ok {
 					return
 				}
-				event = buffer
+				event = append(event, buffer)
 				minTimer = time.After(wait.Min)
 				if maxTimer == nil {
 					maxTimer = time.After(wait.Max)

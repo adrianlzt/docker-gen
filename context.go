@@ -11,6 +11,7 @@ var (
 	mu         sync.RWMutex
 	dockerInfo Docker
 	dockerEnv  *docker.Env
+	events     []*docker.APIEvents
 )
 
 type Context []*RuntimeContainer
@@ -23,6 +24,12 @@ func (c *Context) Docker() Docker {
 	mu.RLock()
 	defer mu.RUnlock()
 	return dockerInfo
+}
+
+func (c *Context) Events() []*docker.APIEvents {
+	mu.RLock()
+	defer mu.RUnlock()
+	return events
 }
 
 func SetServerInfo(d *docker.DockerInfo, apiVersion *docker.Env) {
@@ -45,6 +52,12 @@ func SetDockerEnv(d *docker.Env) {
 	mu.Lock()
 	defer mu.Unlock()
 	dockerEnv = d
+}
+
+func SetDockerEvents(d []*docker.APIEvents) {
+	mu.Lock()
+	defer mu.Unlock()
+	events = d
 }
 
 type Address struct {
