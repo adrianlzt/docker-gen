@@ -368,100 +368,109 @@ func (g *generator) getContainers() ([]*RuntimeContainer, error) {
 
 	containers := []*RuntimeContainer{}
 	for _, apiContainer := range apiContainers {
-		container, err := g.Client.InspectContainer(apiContainer.ID)
+		runtimeContainer, err := g.getContainer(apiContainer.ID)
 		if err != nil {
-			log.Printf("Error inspecting container: %s: %s\n", apiContainer.ID, err)
+			log.Println(err)
 			continue
 		}
-
-		registry, repository, tag := splitDockerImage(container.Config.Image)
-		runtimeContainer := &RuntimeContainer{
-			ID: container.ID,
-			Image: DockerImage{
-				Registry:   registry,
-				Repository: repository,
-				Tag:        tag,
-			},
-			State: State{
-				Running: container.State.Running,
-			},
-			Name:         strings.TrimLeft(container.Name, "/"),
-			Hostname:     container.Config.Hostname,
-			Gateway:      container.NetworkSettings.Gateway,
-			Addresses:    []Address{},
-			Networks:     []Network{},
-			Env:          make(map[string]string),
-			Volumes:      make(map[string]Volume),
-			Node:         SwarmNode{},
-			Labels:       make(map[string]string),
-			IP:           container.NetworkSettings.IPAddress,
-			IP6LinkLocal: container.NetworkSettings.LinkLocalIPv6Address,
-			IP6Global:    container.NetworkSettings.GlobalIPv6Address,
-		}
-		for k, v := range container.NetworkSettings.Ports {
-			address := Address{
-				IP:           container.NetworkSettings.IPAddress,
-				IP6LinkLocal: container.NetworkSettings.LinkLocalIPv6Address,
-				IP6Global:    container.NetworkSettings.GlobalIPv6Address,
-				Port:         k.Port(),
-				Proto:        k.Proto(),
-			}
-			if len(v) > 0 {
-				address.HostPort = v[0].HostPort
-				address.HostIP = v[0].HostIP
-			}
-			runtimeContainer.Addresses = append(runtimeContainer.Addresses,
-				address)
-
-		}
-		for k, v := range container.NetworkSettings.Networks {
-			network := Network{
-				IP:                  v.IPAddress,
-				Name:                k,
-				Gateway:             v.Gateway,
-				EndpointID:          v.EndpointID,
-				IPv6Gateway:         v.IPv6Gateway,
-				GlobalIPv6Address:   v.GlobalIPv6Address,
-				MacAddress:          v.MacAddress,
-				GlobalIPv6PrefixLen: v.GlobalIPv6PrefixLen,
-				IPPrefixLen:         v.IPPrefixLen,
-			}
-
-			runtimeContainer.Networks = append(runtimeContainer.Networks,
-				network)
-		}
-		for k, v := range container.Volumes {
-			runtimeContainer.Volumes[k] = Volume{
-				Path:      k,
-				HostPath:  v,
-				ReadWrite: container.VolumesRW[k],
-			}
-		}
-		if container.Node != nil {
-			runtimeContainer.Node.ID = container.Node.ID
-			runtimeContainer.Node.Name = container.Node.Name
-			runtimeContainer.Node.Address = Address{
-				IP: container.Node.IP,
-			}
-		}
-
-		for _, v := range container.Mounts {
-			runtimeContainer.Mounts = append(runtimeContainer.Mounts, Mount{
-				Name:        v.Name,
-				Source:      v.Source,
-				Destination: v.Destination,
-				Driver:      v.Driver,
-				Mode:        v.Mode,
-				RW:          v.RW,
-			})
-		}
-
-		runtimeContainer.Env = splitKeyValueSlice(container.Config.Env)
-		runtimeContainer.Labels = container.Config.Labels
 		containers = append(containers, runtimeContainer)
 	}
 	return containers, nil
 
+}
+
+func (g *generator) getContainer(id string) (*RuntimeContainer, error) {
+	container, err := g.Client.InspectContainer(id)
+	if err != nil {
+		return nil, fmt.Errorf("Error inspecting container: %s: %s\n", id, err)
+	}
+
+	registry, repository, tag := splitDockerImage(container.Config.Image)
+	runtimeContainer := &RuntimeContainer{
+		ID: container.ID,
+		Image: DockerImage{
+			Registry:   registry,
+			Repository: repository,
+			Tag:        tag,
+		},
+		State: State{
+			Running: container.State.Running,
+		},
+		Name:         strings.TrimLeft(container.Name, "/"),
+		Hostname:     container.Config.Hostname,
+		Gateway:      container.NetworkSettings.Gateway,
+		Addresses:    []Address{},
+		Networks:     []Network{},
+		Env:          make(map[string]string),
+		Volumes:      make(map[string]Volume),
+		Node:         SwarmNode{},
+		Labels:       make(map[string]string),
+		IP:           container.NetworkSettings.IPAddress,
+		IP6LinkLocal: container.NetworkSettings.LinkLocalIPv6Address,
+		IP6Global:    container.NetworkSettings.GlobalIPv6Address,
+	}
+	for k, v := range container.NetworkSettings.Ports {
+		address := Address{
+			IP:           container.NetworkSettings.IPAddress,
+			IP6LinkLocal: container.NetworkSettings.LinkLocalIPv6Address,
+			IP6Global:    container.NetworkSettings.GlobalIPv6Address,
+			Port:         k.Port(),
+			Proto:        k.Proto(),
+		}
+		if len(v) > 0 {
+			address.HostPort = v[0].HostPort
+			address.HostIP = v[0].HostIP
+		}
+		runtimeContainer.Addresses = append(runtimeContainer.Addresses,
+			address)
+
+	}
+	for k, v := range container.NetworkSettings.Networks {
+		network := Network{
+			IP:                  v.IPAddress,
+			Name:                k,
+			Gateway:             v.Gateway,
+			EndpointID:          v.EndpointID,
+			IPv6Gateway:         v.IPv6Gateway,
+			GlobalIPv6Address:   v.GlobalIPv6Address,
+			MacAddress:          v.MacAddress,
+			GlobalIPv6PrefixLen: v.GlobalIPv6PrefixLen,
+			IPPrefixLen:         v.IPPrefixLen,
+		}
+
+		runtimeContainer.Networks = append(runtimeContainer.Networks,
+			network)
+	}
+	for k, v := range container.Volumes {
+		runtimeContainer.Volumes[k] = Volume{
+			Path:      k,
+			HostPath:  v,
+			ReadWrite: container.VolumesRW[k],
+		}
+	}
+	if container.Node != nil {
+		runtimeContainer.Node.ID = container.Node.ID
+		runtimeContainer.Node.Name = container.Node.Name
+		runtimeContainer.Node.Address = Address{
+			IP: container.Node.IP,
+		}
+	}
+
+	for _, v := range container.Mounts {
+		runtimeContainer.Mounts = append(runtimeContainer.Mounts, Mount{
+			Name:        v.Name,
+			Source:      v.Source,
+			Destination: v.Destination,
+			Driver:      v.Driver,
+			Mode:        v.Mode,
+			RW:          v.RW,
+		})
+	}
+
+	runtimeContainer.Env = splitKeyValueSlice(container.Config.Env)
+	runtimeContainer.Labels = container.Config.Labels
+
+	return runtimeContainer, nil
 }
 
 func newSignalChannel() <-chan os.Signal {
