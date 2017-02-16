@@ -346,7 +346,12 @@ func (g *generator) getContainers() ([]*RuntimeContainer, error) {
 	if err != nil {
 		log.Printf("Error retrieving docker server info: %s\n", err)
 	} else {
-		SetServerInfo(apiInfo)
+		apiVersion, err := g.Client.Version()
+		if err != nil {
+			log.Printf("Error retrieving docker version info: %s\n", err)
+		} else {
+			SetServerInfo(apiInfo, apiVersion)
+		}
 	}
 
 	apiContainers, err := g.Client.ListContainers(docker.ListContainersOptions{
